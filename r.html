@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Redirecionando…</title>
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;min-height:100vh;background:#fff;}
+  .card{display:none;font-family:system-ui,-apple-system,sans-serif;background:#fff;border-radius:16px;padding:36px 30px;max-width:400px;width:90%;text-align:center;box-shadow:0 12px 32px rgba(11,23,48,.18);position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);}
+  .card.show{display:block;}
+  h2{margin:0 0 8px;font-size:19px;font-weight:700;color:#101828;}
+  p{color:#4B5768;font-size:14px;margin:0 0 14px;line-height:1.5;}
+  a.btn{display:inline-block;background:#0F1F3D;color:#fff;text-decoration:none;padding:10px 20px;border-radius:9px;font-weight:600;font-size:14px;}
+</style>
+</head>
+<body>
+<div class="card" id="card"></div>
+<script>
+  var SUPABASE_URL = 'https://nyqxpehizsnusmksbske.supabase.co';
+  var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im55cXhwZWhpenNudXNta3Nic2tlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzMjgxOTgsImV4cCI6MjEwNDkwNDE5OH0.nsXIVMFZ3LnvH-v1xiauKAf7gEPPXLAvLpk4g1ukxK8';
+
+  function show(html){ var c = document.getElementById('card'); c.innerHTML = html; c.classList.add('show'); }
+
+  var params = new URLSearchParams(location.search);
+  var code = (params.get('c') || '').trim().toUpperCase();
+
+  if(!code){
+    show('<h2>Código não informado</h2><p>Este link precisa de um código de plaquinha (?c=CODIGO).</p>');
+  } else {
+    var ua = navigator.userAgent;
+    fetch(SUPABASE_URL + '/rest/v1/rpc/redirecionar_plaquinha', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({
+        p_code: code,
+        p_user_agent: ua,
+        p_referrer: document.referrer || '',
+        p_device: /mobi|android|iphone|ipad/i.test(ua) ? 'Celular' : 'Computador',
+        p_browser: /edg/i.test(ua) ? 'Edge' : (/chrome/i.test(ua) ? 'Chrome' : (/firefox/i.test(ua) ? 'Firefox' : (/safari/i.test(ua) ? 'Safari' : 'Outro'))),
+      }),
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if(!data || data.status === 'not_found'){
+        show('<h2>Plaquinha não encontrada</h2><p>O código <b>'+code+'</b> não existe em nosso sistema.</p>');
+      } else if(data.status === 'inactive'){
+        show('<h2>QR Code desativado</h2><p>Esta plaquinha está temporariamente inativa. Fale com o responsável pelo estabelecimento.</p>');
+      } else {
+        // sucesso: troca de página direta, sem mostrar nenhuma tela intermediária
+        location.replace(data.destination_url);
+      }
+    })
+    .catch(function(){
+      show('<h2>Não foi possível verificar</h2><p>Tente novamente em alguns instantes.</p>');
+    });
+  }
+</script>
+</body>
+</html>
