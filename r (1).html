@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Redirecionando…</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Permanent+Marker&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;min-height:100vh;font-family:'Inter',system-ui,sans-serif;}
+  body{
+    display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;
+    background:#0F1F3D;
+    transition:background-color .4s ease;
+  }
+  .wrap{text-align:center;max-width:420px;width:100%;}
+  .brand-name{
+    font-family:'Permanent Marker',cursive;
+    font-size:44px;
+    line-height:1.15;
+    color:#fff;
+    text-shadow:0 3px 0 rgba(0,0,0,.15);
+    margin:0 0 6px;
+    word-break:break-word;
+    opacity:0;
+    transform:translateY(6px);
+    animation:fadein .5s ease forwards;
+  }
+  @keyframes fadein{to{opacity:1;transform:translateY(0);}}
+  .tagline{color:rgba(255,255,255,.85);font-size:14.5px;margin:0 0 26px;}
+  .dots{display:flex;gap:7px;justify-content:center;margin-bottom:8px;}
+  .dot{width:8px;height:8px;border-radius:50%;background:#fff;opacity:.4;animation:pulse 1s ease-in-out infinite;}
+  .dot:nth-child(2){animation-delay:.15s;}
+  .dot:nth-child(3){animation-delay:.3s;}
+  @keyframes pulse{0%,100%{opacity:.3;transform:scale(.85);}50%{opacity:1;transform:scale(1);}}
+  .card{
+    background:rgba(255,255,255,.97);border-radius:16px;padding:30px 26px;max-width:400px;width:100%;
+    text-align:center;box-shadow:0 16px 40px rgba(0,0,0,.25);display:none;
+  }
+  .card.show{display:block;}
+  .card h2{margin:0 0 8px;font-size:19px;font-weight:700;color:#101828;}
+  .card p{color:#4B5768;font-size:14px;margin:0;line-height:1.5;}
+  a.btn{display:inline-block;margin-top:14px;background:#0F1F3D;color:#fff;text-decoration:none;padding:10px 20px;border-radius:9px;font-weight:600;font-size:14px;}
+  .powered{position:fixed;bottom:14px;left:0;right:0;text-align:center;font-size:11px;color:rgba(255,255,255,.5);letter-spacing:.3px;}
+</style>
+</head>
+<body id="body">
+<div class="wrap" id="wrap">
+  <div class="dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+</div>
+<div class="powered">plaquê · redirecionamento seguro</div>
+<script>
+  var SUPABASE_URL = 'https://nyqxpehizsnusmksbske.supabase.co';
+  var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im55cXhwZWhpenNudXNta3Nic2tlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzMjgxOTgsImV4cCI6MjEwNDkwNDE5OH0.nsXIVMFZ3LnvH-v1xiauKAf7gEPPXLAvLpk4g1ukxK8';
+
+  var wrap = document.getElementById('wrap');
+  var body = document.getElementById('body');
+
+  function escapeHtml(s){
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+    });
+  }
+  function showBranded(name, color){
+    var safeColor = /^#[0-9a-fA-F]{6}$/.test(color || '') ? color : '#0F1F3D';
+    body.style.background = safeColor;
+    wrap.innerHTML = '<div class="brand-name">' + escapeHtml(name) + '</div><div class="tagline">Redirecionando você agora…</div>';
+  }
+  function showCard(html){
+    wrap.innerHTML = '<div class="card show">' + html + '</div>';
+  }
+
+  var params = new URLSearchParams(location.search);
+  var code = (params.get('c') || '').trim().toUpperCase();
+
+  if(!code){
+    showCard('<h2>Código não informado</h2><p>Este link precisa de um código de plaquinha (?c=CODIGO).</p>');
+  } else {
+    var ua = navigator.userAgent;
+    fetch(SUPABASE_URL + '/rest/v1/rpc/redirecionar_plaquinha', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({
+        p_code: code,
+        p_user_agent: ua,
+        p_referrer: document.referrer || '',
+        p_device: /mobi|android|iphone|ipad/i.test(ua) ? 'Celular' : 'Computador',
+        p_browser: /edg/i.test(ua) ? 'Edge' : (/chrome/i.test(ua) ? 'Chrome' : (/firefox/i.test(ua) ? 'Firefox' : (/safari/i.test(ua) ? 'Safari' : 'Outro'))),
+      }),
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      if(!data || data.status === 'not_found'){
+        showCard('<h2>Plaquinha não encontrada</h2><p>O código <b>'+code+'</b> não existe em nosso sistema.</p>');
+      } else if(data.status === 'inactive'){
+        showCard('<h2>QR Code desativado</h2><p>Esta plaquinha está temporariamente inativa. Fale com o responsável pelo estabelecimento.</p>');
+      } else {
+        showBranded(data.business_name, data.brand_color);
+        setTimeout(function(){ location.replace(data.destination_url); }, 700);
+      }
+    })
+    .catch(function(){
+      showCard('<h2>Não foi possível verificar</h2><p>Tente novamente em alguns instantes.</p>');
+    });
+  }
+</script>
+</body>
+</html>

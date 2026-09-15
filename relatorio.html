@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Baixar relatório · Plaquê</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<style>
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:'Inter',system-ui,sans-serif;background:#F3F6FB;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;color:#101828;}
+  .card{background:#fff;border-radius:16px;padding:34px 30px;max-width:420px;width:100%;box-shadow:0 12px 32px rgba(11,23,48,.1);}
+  h1{font-family:'Plus Jakarta Sans';font-size:21px;margin:0 0 6px;}
+  p.sub{color:#4B5768;font-size:14px;margin:0 0 22px;line-height:1.5;}
+  label{display:block;font-size:13px;font-weight:600;margin-bottom:6px;}
+  input{width:100%;padding:11px 13px;border:1px solid #E1E7F0;border-radius:8px;font-size:15px;margin-bottom:14px;text-transform:uppercase;}
+  button{width:100%;padding:12px;border:none;border-radius:9px;background:#0F1F3D;color:#fff;font-weight:700;font-size:14.5px;cursor:pointer;}
+  button:disabled{opacity:.5;cursor:not-allowed;}
+  .msg{font-size:13.5px;margin-top:14px;text-align:center;}
+  .msg.error{color:#D6304A;}
+  .msg.success{color:#159A52;}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Baixe o relatório da sua plaquinha</h1>
+  <p class="sub">Digite o código que está impresso na sua plaquinha (ex: A8K92P) para gerar e baixar o relatório de acessos em PDF.</p>
+  <label>Código da plaquinha</label>
+  <input id="code" placeholder="A8K92P" maxlength="10">
+  <button id="btn" onclick="gerar()">Baixar relatório em PDF</button>
+  <div class="msg" id="msg"></div>
+</div>
+<script>
+  var SUPABASE_URL = 'https://nyqxpehizsnusmksbske.supabase.co';
+  var SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im55cXhwZWhpenNudXNta3Nic2tlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODkzMjgxOTgsImV4cCI6MjEwNDkwNDE5OH0.nsXIVMFZ3LnvH-v1xiauKAf7gEPPXLAvLpk4g1ukxK8';
+
+  function setMsg(text, type){
+    var m = document.getElementById('msg');
+    m.textContent = text;
+    m.className = 'msg' + (type ? ' ' + type : '');
+  }
+
+  function buildBarChartImage(labels, values, color){
+    var canvas = document.createElement('canvas');
+    canvas.width = 900; canvas.height = 320;
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,canvas.width,canvas.height);
+    var max = Math.max.apply(null, [1].concat(values));
+    var chartH = 240, baseY = 260, leftPad = 10;
+    var slot = (canvas.width - leftPad*2) / values.length;
+    var barW = slot * 0.55;
+    values.forEach(function(v,i){
+      var x = leftPad + i*slot + (slot-barW)/2;
+      var h = (v/max) * chartH;
+      ctx.fillStyle = color;
+      ctx.fillRect(x, baseY-h, barW, h);
+      ctx.fillStyle = '#101828';
+      ctx.font = '600 20px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(String(v), x+barW/2, baseY-h-8);
+      ctx.fillStyle = '#4B5768';
+      ctx.font = '16px sans-serif';
+      ctx.fillText(labels[i], x+barW/2, baseY+22);
+    });
+    ctx.strokeStyle = '#E1E7F0';
+    ctx.beginPath(); ctx.moveTo(0, baseY+0.5); ctx.lineTo(canvas.width, baseY+0.5); ctx.stroke();
+    return canvas.toDataURL('image/png');
+  }
+
+  function slugFileName(name){
+    return 'relatorio-' + String(name).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-zA-Z0-9]+/g,'-').replace(/^-+|-+$/g,'').toLowerCase();
+  }
+
+  function gerar(){
+    var code = document.getElementById('code').value.trim().toUpperCase();
+    if(!code){ setMsg('Digite o código da plaquinha.', 'error'); return; }
+    var btn = document.getElementById('btn');
+    btn.disabled = true;
+    setMsg('Buscando dados…');
+
+    fetch(SUPABASE_URL + '/rest/v1/rpc/obter_relatorio_plaquinha', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_ANON_KEY,
+        'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+      },
+      body: JSON.stringify({ p_code: code }),
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(data){
+      btn.disabled = false;
+      if(!data || data.status === 'not_found'){
+        setMsg('Código não encontrado. Confira e tente de novo.', 'error');
+        return;
+      }
+      var scans = data.scans || [];
+      if(scans.length === 0){
+        setMsg('Essa plaquinha ainda não teve nenhum acesso registrado.', 'error');
+        return;
+      }
+
+      var byDay = {};
+      scans.forEach(function(s){
+        var d = new Date(s.scanned_at);
+        var key = d.toLocaleDateString('pt-BR');
+        if(!byDay[key]) byDay[key] = {count:0, hours:{}};
+        byDay[key].count++;
+        var h = d.getHours();
+        byDay[key].hours[h] = (byDay[key].hours[h] || 0) + 1;
+      });
+      function parseBr(key){ var p = key.split('/'); return new Date(p[2]+'-'+p[1]+'-'+p[0]); }
+      var ascending = Object.keys(byDay).map(function(k){ return [k, byDay[k]]; }).sort(function(a,b){ return parseBr(a[0]) - parseBr(b[0]); });
+      var rows = ascending.map(function(entry, i){
+        var date = entry[0], v = entry[1];
+        var peakHour = Object.keys(v.hours).sort(function(a,b){ return v.hours[b]-v.hours[a]; })[0];
+        var variacao = '—';
+        if(i > 0){
+          var prevCount = ascending[i-1][1].count;
+          var pct = Math.round(((v.count - prevCount) / prevCount) * 100);
+          variacao = (pct > 0 ? '+' : '') + pct + '%';
+        }
+        return [date, v.count, peakHour + 'h', variacao];
+      }).reverse();
+
+      var totalAccesses = scans.length;
+      var daysWithData = ascending.length;
+      var avgPerDay = (totalAccesses / daysWithData).toFixed(1);
+      var bestDayEntry = ascending.reduce(function(best, cur){ return cur[1].count > best[1].count ? cur : best; }, ascending[0]);
+      var periodStart = ascending[0][0];
+      var periodEnd = ascending[ascending.length-1][0];
+      var trendLabel = '—';
+      if(daysWithData >= 4){
+        var mid = Math.floor(daysWithData/2);
+        var firstHalf = ascending.slice(0, mid);
+        var secondHalf = ascending.slice(mid);
+        var avgFirst = firstHalf.reduce(function(s,e){ return s+e[1].count; },0)/firstHalf.length;
+        var avgSecond = secondHalf.reduce(function(s,e){ return s+e[1].count; },0)/secondHalf.length;
+        var pct = Math.round(((avgSecond-avgFirst)/avgFirst)*100);
+        trendLabel = (pct>0?'+':'')+pct+'%';
+      }
+
+      var chartEntries = ascending.slice(-14);
+      var chartLabels = chartEntries.map(function(e){ return e[0].split('/').slice(0,2).join('/'); });
+      var chartValues = chartEntries.map(function(e){ return e[1].count; });
+      var chartImg = buildBarChartImage(chartLabels, chartValues, '#1FAA59');
+
+      var jsPDF = window.jspdf.jsPDF;
+      var doc = new jsPDF();
+
+      doc.setFillColor(15, 31, 61);
+      doc.rect(0, 0, 210, 32, 'F');
+      doc.setTextColor(255,255,255);
+      doc.setFontSize(18);
+      doc.text('Relatório de Desempenho', 14, 15);
+      doc.setFontSize(12);
+      doc.text(data.business_name || '', 14, 24);
+
+      doc.setTextColor(90);
+      doc.setFontSize(9.5);
+      doc.text([
+        'Cliente: ' + (data.client_name || '') + '   |   Código: ' + (data.unique_code || ''),
+        'Período: ' + periodStart + ' a ' + periodEnd + '   |   Gerado em: ' + new Date().toLocaleString('pt-BR'),
+      ], 14, 40);
+
+      var cards = [
+        {label:'Total de acessos', value: String(totalAccesses)},
+        {label:'Média diária', value: avgPerDay},
+        {label:'Melhor dia', value: bestDayEntry[1].count + ' (' + bestDayEntry[0] + ')'},
+        {label:'Tendência', value: trendLabel},
+      ];
+      var cardW = 43, cardH = 22, gap = 3, startX = 14, cardY = 50;
+      cards.forEach(function(c, i){
+        var x = startX + i * (cardW + gap);
+        doc.setFillColor(244, 246, 251);
+        doc.roundedRect(x, cardY, cardW, cardH, 2, 2, 'F');
+        doc.setTextColor(75, 87, 104);
+        doc.setFontSize(8);
+        doc.text(c.label, x + 4, cardY + 8);
+        doc.setTextColor(15, 31, 61);
+        doc.setFontSize(13);
+        doc.text(c.value, x + 4, cardY + 17);
+      });
+
+      doc.setTextColor(20);
+      doc.setFontSize(11);
+      doc.text('Acessos por dia (últimos ' + chartEntries.length + ' dias com movimento)', 14, cardY + cardH + 12);
+      doc.addImage(chartImg, 'PNG', 14, cardY + cardH + 16, 182, 55);
+
+      doc.autoTable({
+        startY: cardY + cardH + 78,
+        head: [['Data', 'Total de acessos', 'Horário de pico', 'Variação vs. dia anterior']],
+        body: rows,
+        headStyles: { fillColor: [15, 31, 61] },
+        styles: { fontSize: 9.5 },
+      });
+
+      var finalY = doc.lastAutoTable.finalY || (cardY + cardH + 78);
+      doc.setFontSize(8);
+      doc.setTextColor(140);
+      doc.text('Relatório gerado automaticamente pelo sistema Plaquê.', 14, Math.min(finalY + 10, 290));
+
+      doc.save(slugFileName(data.business_name || data.unique_code) + '.pdf');
+      setMsg('Relatório baixado com sucesso!', 'success');
+    })
+    .catch(function(){
+      btn.disabled = false;
+      setMsg('Não foi possível buscar os dados agora. Tente novamente.', 'error');
+    });
+  }
+</script>
+</body>
+</html>
